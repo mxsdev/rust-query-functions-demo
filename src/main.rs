@@ -1,4 +1,4 @@
-use std::{fmt::Display, any::TypeId};
+use std::{fmt::Display, any::{Any}};
 
 fn print_name(
     name: Name,
@@ -57,7 +57,7 @@ impl Display for Age {
 }
 
 trait AvailableParams {
-    fn get_param<T: Param + 'static>(&self) -> Option<Box<T>>;
+    fn get_param<T: Param + 'static>(&self) -> Option<T>;
 }
 
 struct App {
@@ -66,17 +66,13 @@ struct App {
 }
 
 impl AvailableParams for App {
-    fn get_param<T: Param + 'static>(&self) -> Option<Box<T>> {
-        let id = TypeId::of::<T>();
-        
-        unsafe {
-            if id == TypeId::of::<Age>() {
-                return Some(std::mem::transmute(Box::new(Age(self.age))))
-            }
-    
-            if id == TypeId::of::<Name>() {
-                return Some(std::mem::transmute(Box::new(Name(self.name.clone()))))
-            }
+    fn get_param<T: Param + 'static>(&self) -> Option<T> {
+        if let Some(res) = (Box::new(Age(self.age)) as Box<dyn Any + 'static>).downcast::<T>().ok() {
+            return Some(*res)
+        }
+
+        if let Some(res) = (Box::new(Name(self.name.clone())) as Box<dyn Any + 'static>).downcast::<T>().ok() {
+            return Some(*res)
         }
 
         return None
@@ -93,7 +89,7 @@ where Func:
 {
     fn run(&mut self, params: &impl AvailableParams) -> Option<Out> {
         self(
-            *params.get_param::<F1>()?,
+            params.get_param::<F1>()?,
         ).into()
     }
 }
@@ -104,8 +100,8 @@ where Func:
 {
     fn run(&mut self, params: &impl AvailableParams) -> Option<Out> {
         self(
-            *params.get_param::<F1>()?,
-            *params.get_param::<F2>()?,
+            params.get_param::<F1>()?,
+            params.get_param::<F2>()?,
         ).into()
     }
 }
